@@ -4,30 +4,7 @@ import subprocess
 import threading
 from uuid import uuid4
 
-
-class Response:
-    def __init__(self, dct: dict):
-        try:
-            self._code = dct['code']
-            self._data = dct['data']
-        except KeyError:
-            self._code = 400
-            self._data = {'message': 'Invalid Response'}
-
-    @property
-    def code(self) -> int:
-        return self._code
-
-    @property
-    def data(self) -> dict:
-        return self._data
-
-    @property
-    def ok(self) -> bool:
-        return self._code < 400
-
-    def __str__(self):
-        return f"<Response {self._code}>"
+from StdioBridge.client._response import Response, StreamResponse
 
 
 class Client:
@@ -36,6 +13,8 @@ class Client:
         self._kwargs = kwargs
         self._popen: subprocess.Popen | None = None
         self._responses: dict[str: dict] = dict()
+        self._streams: dict[str: list[dict]] = dict()
+        self._stream_responses: dict[str: StreamResponse] = dict()
         self._thread: threading.Thread | None = None
         self._run()
 
@@ -59,34 +38,60 @@ class Client:
             elif line.startswith('!response!'):
                 dct = json.loads(line[len('!response!'):])
                 self._responses[dct['id']] = dct
+            elif line.startswith('!stream_start!'):
+                dct = json.loads(line[len('!stream_start!'):])
+                self._streams[dct['id']] = lst = []
+                self._stream_responses[dct['id']] = StreamResponse(dct, lst)
+            elif line.startswith('!stream_chunk!'):
+                dct = json.loads(line[len('!stream_chunk!'):])
+                self._streams[dct['id']].append(dct['chunk'])
+            elif line.startswith('!stream_end!'):
+                dct = json.loads(line[len('!stream_end!'):])
+                self._streams.pop(dct['id'])
+                resp = self._stream_responses[dct['id']]
+                resp._finished = True
+                resp._code = dct['code']
+                if resp._captured:
+                    self._stream_responses.pop(dct['id'])
             else:
-                print(line)
+                print(line, end='')
 
-    async def _request(self, method: str, url: str, data: dict):
+    async def _request(self, method: str, url: str, data: dict, stream=False) -> Response | StreamResponse:
         request_id = str(uuid4())
-        self._popen.stdin.write(json.dumps({'id': request_id, 'method': method, 'url': url, 'data': data}) + '\n')
+        self._popen.stdin.write(json.dumps({'id': request_id, 'method': method, 'url': url,
+                                            'data': data, 'stream': stream}) + '\n')
         self._popen.stdin.flush()
+
+        if stream:
+            while request_id not in self._stream_responses:
+                await asyncio.sleep(0.2)
+            resp = self._stream_responses[request_id]
+            resp._captured = True
+            if resp.finished:
+                self._stream_responses.pop(request_id)
+            return resp
+
         while request_id not in self._responses:
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.2)
         resp = self._responses[request_id]
         return Response(resp)
 
-    async def get(self, url: str, data: dict = None) -> Response:
-        resp = await self._request('get', url, data)
+    async def get(self, url: str, data: dict = None, stream=False) -> Response | StreamResponse:
+        resp = await self._request('get', url, data, stream)
         return resp
 
-    async def post(self, url: str, data: dict) -> Response:
-        resp = await self._request('post', url, data)
+    async def post(self, url: str, data: dict, stream=False) -> Response | StreamResponse:
+        resp = await self._request('post', url, data, stream)
         return resp
 
-    async def put(self, url: str, data: dict) -> Response:
-        resp = await self._request('put', url, data)
+    async def put(self, url: str, data: dict, stream=False) -> Response | StreamResponse:
+        resp = await self._request('put', url, data, stream)
         return resp
 
-    async def delete(self, url: str, data: dict = None) -> Response:
-        resp = await self._request('delete', url, data)
+    async def delete(self, url: str, data: dict = None, stream=False) -> Response | StreamResponse:
+        resp = await self._request('delete', url, data, stream)
         return resp
 
-    async def patch(self, url: str, data: dict) -> Response:
-        resp = await self._request('patch', url, data)
+    async def patch(self, url: str, data: dict, stream=False) -> Response | StreamResponse:
+        resp = await self._request('patch', url, data, stream)
         return resp
