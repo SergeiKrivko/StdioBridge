@@ -90,19 +90,3 @@ class Client:
     async def patch(self, url: str, data: dict) -> Response:
         resp = await self._request('patch', url, data)
         return resp
-
-
-async def main():
-    client = Client('python -m TestPluginSrc.api')
-
-    resp = await client.get('url?key=6')
-    print(resp, resp.data)
-    resp = await client.post('url/4d5515be-bf03-4c66-874e-31063045a9f6', {'1': 1, '2': 2, '5': 5})
-    print(resp, resp.data)
-    resp = await client.post('url/last', {'1': 1, '2': 2, '5': 5})
-    print(resp, resp.data)
-    client.terminate()
-
-
-if __name__ == '__main__':
-    asyncio.run(main())

@@ -108,6 +108,8 @@ class Api:
 
                 try:
                     return Response(200, func(**params))
+                except ApiError as e:
+                    raise e
                 except Exception as e:
                     raise InternalServerError(f"{e.__class__.__name__}: {e}")
 
