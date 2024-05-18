@@ -63,15 +63,17 @@ class Api:
                             started = True
                         print('!stream_chunk!', json.dumps({'id': resp_id, 'chunk': el}), sep='')
                     print('!stream_end!', json.dumps({'id': resp_id, 'code': res.code}), sep='')
-            else:
+            elif isinstance(res, Response):
                 if stream:
-                    print('!stream_start!', json.dumps({'id': resp_id, 'code': 400}), sep='')
-                    print('!stream_chunk!', json.dumps({'id': resp_id, 'chunk': "Stream not supported!"}), sep='')
+                    print('!stream_start!', json.dumps({'id': resp_id, 'code': res.code}), sep='')
+                    print('!stream_chunk!', json.dumps({'id': resp_id, 'chunk': res.data}), sep='')
+                    print('!stream_end!', json.dumps({'id': resp_id, 'code': res.code}), sep='')
                 else:
                     print('!response!', json.dumps({'id': resp_id, 'code': res.code, 'data': res.data}), sep='')
+            else:
+                raise InternalServerError(f"Error in StdioBridge: Invalid response type {type(res)}")
         except ApiError as err:
-            resp = Response(err.code, {'message': err.message})
-            print('!response!', json.dumps({'id': resp_id, 'code': resp.code, 'data': resp.data}), sep='')
+            print('!response!', json.dumps({'id': resp_id, 'code': err.code, 'data': {'message': err.message}}), sep='')
         except Exception:
             print('!response!', json.dumps({'id': resp_id, 'code': 500,
                                             'data': {'message': "Internal Server Error"}}), sep='')

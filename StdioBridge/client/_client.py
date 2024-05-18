@@ -17,6 +17,8 @@ class Client:
         self._streams: dict[str: list[dict]] = dict()
         self._stream_responses: dict[str: StreamResponse] = dict()
         self._thread: threading.Thread | None = None
+
+        self._initialize_kwargs()
         self._run()
 
     def _initialize_kwargs(self):

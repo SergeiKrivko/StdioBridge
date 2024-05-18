@@ -87,6 +87,8 @@ def _result_to_json(result):
         return [_result_to_json(el) for el in result]
     if hasattr(result, 'dict'):
         return result.dict()
+    if hasattr(result, 'json'):
+        return result.json()
     return result
 
 
@@ -144,8 +146,6 @@ class Router:
                         continue
                     elif (p := self._check_data_param(data, param_type)) is not None:
                         params[param_name] = p
-                    # else:
-                    #     raise ErrorUnprocessableEntity
 
                 try:
                     res = func(**params)
