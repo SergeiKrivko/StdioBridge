@@ -1,6 +1,7 @@
 import asyncio
 import json
 import subprocess
+import sys
 import threading
 from uuid import uuid4
 
@@ -18,10 +19,17 @@ class Client:
         self._thread: threading.Thread | None = None
         self._run()
 
+    def _initialize_kwargs(self):
+        if 'encoding' not in self._kwargs:
+            self._kwargs['encoding'] = 'utf-8'
+        if 'startupinfo' not in self._kwargs and sys.platform == 'win32':
+            si = subprocess.STARTUPINFO()
+            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            self._kwargs['startupinfo'] = si
+
     def _run(self) -> None:
         self._popen = subprocess.Popen(self._command,
                                        text=True,
-                                       encoding='utf-8',
                                        stdin=subprocess.PIPE,
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.STDOUT,
