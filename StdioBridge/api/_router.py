@@ -1,6 +1,6 @@
 from inspect import isasyncgen, isgenerator, iscoroutine
-from types import FunctionType
-from typing import Callable, Any
+from types import FunctionType, GenericAlias
+from typing import Callable, Any, Type
 
 from StdioBridge.api._response import Response, StreamResponse
 from StdioBridge.api.errors import *
@@ -73,33 +73,79 @@ class _Router:
         raise ErrorNotFound()
 
 
+def _convert_param(param_type: Type, param):
+    try:
+        return param_type(param)
+    except Exception:
+        raise ErrorUnprocessableEntity(f"Cannot convert {param} to {param_type.__name__}")
+
+
+def _result_to_json(result):
+    if isinstance(result, dict):
+        return {key: _result_to_json(value) for key, value in result.items()}
+    if isinstance(result, list):
+        return [_result_to_json(el) for el in result]
+    if hasattr(result, 'dict'):
+        return result.dict()
+    return result
+
+
 class Router:
     def __init__(self):
         self._router = _Router('/')
 
+    @staticmethod
+    def _check_data_param(data, param_type):
+        if param_type == dict:
+            return dict(data)
+        if isinstance(param_type, GenericAlias) and param_type.__origin__ == dict:
+            return dict(data)
+        try:
+            import pydantic
+            if issubclass(param_type, pydantic.BaseModel):
+                return param_type(**data)
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _check_query_param(param_list, param_type):
+        if param_type == list:
+            return list(param_list)
+        elif isinstance(param_type, GenericAlias) and param_type.__origin__ == list:
+            if len(param_type.__args__) != 1:
+                raise ErrorUnprocessableEntity(f"Invalid param type: {param_type}")
+            return [_convert_param(param_type.__args__[0], el) for el in param_list]
+        else:
+            if len(param_list) == 1:
+                return _convert_param(param_type, param_list[0])
+            else:
+                raise ErrorUnprocessableEntity("Only one param is allowed")
+
     def _method(self, method: str, url: str):
         def decorator(func: FunctionType) -> Callable:
             async def wrapper(data: dict[str: Any],
-                              path_params: dict[str: str] = None,
-                              query_params: dict[str: list[str]] = None) -> Response | StreamResponse:
+                              path_params: dict[str: str],
+                              query_params: dict[str: list[str]]) -> Response | StreamResponse:
                 params = dict()
-                try:
-                    for param_name, param_type in func.__annotations__.items():
-                        if param_type == dict:
-                            if data is not None:
-                                params[param_name] = param_type(data)
-                        elif path_params and param_name in path_params:
-                            params[param_name] = param_type(path_params[param_name])
-                        elif query_params and param_name in query_params:
-                            if param_type != list:
-                                if len(query_params[param_name]) == 1:
-                                    params[param_name] = param_type(query_params[param_name][0])
-                                else:
-                                    raise InternalServerError
-                            else:
-                                params[param_name] = param_type(query_params[param_name])
-                except ValueError:
-                    raise ErrorUnprocessableEntity()
+
+                for param_name, param in path_params.items():
+                    param_type = func.__annotations__.get(param_name, Any)
+                    params[param_name] = _convert_param(param_type, param)
+
+                for param_name, param in query_params.items():
+                    if param_name in path_params:
+                        raise ErrorUnprocessableEntity(f"Duplicate param name: '{param_name}'")
+                    param_type = func.__annotations__.get(param_name, Any)
+                    params[param_name] = self._check_query_param(param, param_type)
+
+                for param_name, param_type in func.__annotations__.items():
+                    if param_name in path_params or param_name in query_params:
+                        continue
+                    elif (p := self._check_data_param(data, param_type)) is not None:
+                        params[param_name] = p
+                    # else:
+                    #     raise ErrorUnprocessableEntity
 
                 try:
                     res = func(**params)
@@ -107,7 +153,7 @@ class Router:
                         return StreamResponse(res)
                     elif iscoroutine(res):
                         res = await res
-                    return Response(200, res)
+                    return Response(200, _result_to_json(res))
                 except ApiError as e:
                     raise e
                 except Exception as e:

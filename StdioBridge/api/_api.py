@@ -1,5 +1,4 @@
 import asyncio
-import functools
 import json
 from urllib.parse import urlparse, parse_qs
 
@@ -8,14 +7,6 @@ from aioconsole import ainput
 from StdioBridge.api._response import Response, StreamResponse
 from StdioBridge.api._router import Router
 from StdioBridge.api.errors import *
-
-
-def async_slot(func):
-    @functools.wraps(func)
-    def _run(*args, **kwargs):
-        loop = asyncio.get_event_loop()
-        loop.create_task(func(*args, **kwargs)).done()
-    return _run
 
 
 class Api:
@@ -40,7 +31,6 @@ class Api:
     def add_router(self, url: str, router: Router):
         self._root_router.add_router(url, router)
 
-    @async_slot
     async def _process_request(self, request: dict):
         resp_id = request.get('id')
         try:
@@ -93,10 +83,8 @@ class Api:
         while True:
             try:
                 inp = await ainput()
-                # inp = input()
                 data = json.loads(inp)
-                resp_id = data.get('id')
             except json.JSONDecodeError:
                 print("Invalid JSON")
             else:
-                self._process_request(data)
+                asyncio.create_task(self._process_request(data)).done()
