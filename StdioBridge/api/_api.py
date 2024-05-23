@@ -9,7 +9,7 @@ from StdioBridge.api._router import Router
 from StdioBridge.api.errors import *
 
 
-class Api:
+class BridgeAPI:
     def __init__(self):
         self._root_router = Router()
 
