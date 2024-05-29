@@ -54,29 +54,31 @@ class BridgeAPI:
                     lst = []
                     async for chunk in res:
                         lst.append(chunk)
-                    print('!response!', json.dumps({'id': resp_id, 'code': res.code, 'data': lst}), sep='')
+                    print('!response!', json.dumps({'id': resp_id, 'code': res.code, 'data': lst}), sep='', flush=True)
                 else:
                     started = False
                     async for el in res:
                         if not started:
-                            print('!stream_start!', json.dumps({'id': resp_id, 'code': res.code}), sep='')
+                            print('!stream_start!', json.dumps({'id': resp_id, 'code': res.code}), sep='', flush=True)
                             started = True
-                        print('!stream_chunk!', json.dumps({'id': resp_id, 'chunk': el}), sep='')
-                    print('!stream_end!', json.dumps({'id': resp_id, 'code': res.code}), sep='')
+                        print('!stream_chunk!', json.dumps({'id': resp_id, 'chunk': el}), sep='', flush=True)
+                    print('!stream_end!', json.dumps({'id': resp_id, 'code': res.code}), sep='', flush=True)
             elif isinstance(res, Response):
                 if stream:
-                    print('!stream_start!', json.dumps({'id': resp_id, 'code': res.code}), sep='')
-                    print('!stream_chunk!', json.dumps({'id': resp_id, 'chunk': res.data}), sep='')
-                    print('!stream_end!', json.dumps({'id': resp_id, 'code': res.code}), sep='')
+                    print('!stream_start!', json.dumps({'id': resp_id, 'code': res.code}), sep='', flush=True)
+                    print('!stream_chunk!', json.dumps({'id': resp_id, 'chunk': res.data}), sep='', flush=True)
+                    print('!stream_end!', json.dumps({'id': resp_id, 'code': res.code}), sep='', flush=True)
                 else:
-                    print('!response!', json.dumps({'id': resp_id, 'code': res.code, 'data': res.data}), sep='')
+                    print('!response!', json.dumps({'id': resp_id, 'code': res.code, 'data': res.data}), sep='',
+                          flush=True)
             else:
                 raise InternalServerError(f"Error in StdioBridge: Invalid response type {type(res)}")
         except ApiError as err:
-            print('!response!', json.dumps({'id': resp_id, 'code': err.code, 'data': {'message': err.message}}), sep='')
+            print('!response!', json.dumps({'id': resp_id, 'code': err.code, 'data': {'message': err.message}}), sep='',
+                  flush=True)
         except Exception:
             print('!response!', json.dumps({'id': resp_id, 'code': 500,
-                                            'data': {'message': "Internal Server Error"}}), sep='')
+                                            'data': {'message': "Internal Server Error"}}), sep='', flush=True)
 
     def run(self):
         asyncio.run(self._run())
@@ -87,6 +89,6 @@ class BridgeAPI:
                 inp = await ainput()
                 data = json.loads(inp)
             except json.JSONDecodeError:
-                print("Invalid JSON")
+                print("Invalid JSON", flush=True)
             else:
                 asyncio.create_task(self._process_request(data)).done()
