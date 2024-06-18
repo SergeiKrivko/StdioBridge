@@ -34,7 +34,7 @@ if __name__ == '__main__':
         long_description_content_type='text/markdown',
         license=license(),
         package_dir={'StdioBridge': 'StdioBridge'},
-        packages=find_packages(include=['StdioBridge*']),
+        packages=['StdioBridge', 'StdioBridge.api', 'StdioBridge.client', 'StdioBridge._ui'],
         entry_points={
             'console_scripts': [
                 'bridge-docs = StdioBridge._ui.main_window:main',
