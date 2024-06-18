@@ -35,6 +35,11 @@ if __name__ == '__main__':
         license=license(),
         package_dir={'StdioBridge': 'StdioBridge'},
         packages=find_packages(include=['StdioBridge*']),
+        entry_points={
+            'console_scripts': [
+                'bridge-docs = StdioBridge._ui.main_window:main',
+            ]
+        },
         description='A StdioBridge package.',
         install_requires=requirements(),
         python_requires='>=3.10'

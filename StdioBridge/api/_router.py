@@ -2,6 +2,7 @@ from inspect import isasyncgen, isgenerator, iscoroutine
 from types import FunctionType, GenericAlias
 from typing import Callable, Any, Type
 
+from StdioBridge.api._docs import MethodDocs
 from StdioBridge.api._response import Response, StreamResponse
 from StdioBridge.api.errors import *
 
@@ -11,20 +12,23 @@ class _Router:
         self.name = name
         self._routes: dict[str: _Router] = dict()
         self._handlers: dict[str: Callable] = {}
+        self._docs: dict[str, MethodDocs] = {}
 
-    def add(self, path: list[str], method, func: Callable):
+    def add(self, path: list[str], method, func: Callable, docs=None):
         if not path:
             if method not in self._handlers:
                 self._handlers[method] = func
+                if docs is not None:
+                    self._docs[method] = docs
             else:
                 raise KeyError(f'Method "{method}" is already registered.')
         else:
             param = None if not path[0].startswith('{') else path[0].strip('{}')
             if path[0] not in self._routes:
-                self._routes[None if param else path[0]] = _Router(param or path[0])
+                self._routes[None if param else path[0]] = _Router(path[0])
             router = self._routes[None if param else path[0]]
             new_path = path[1:]
-            router.add(new_path, method, func)
+            router.add(new_path, method, func, docs)
 
     def add_router(self, path: list[str], router: '_Router'):
         if len(path) == 1:
@@ -71,6 +75,13 @@ class _Router:
         if method_not_found:
             raise ErrorMethodNotAllowed()
         raise ErrorNotFound()
+
+    def docs(self):
+        docs = {self.name: {key: item.dict() for key, item in self._docs.items()}}
+        for child in self._routes.values():
+            for key, item in child.docs().items():
+                docs[f"{'' if self.name == '/' else self.name}/{key}"] = item
+        return docs
 
 
 def _convert_param(param_type: Type, param):
@@ -159,7 +170,7 @@ class Router:
                 except Exception as e:
                     raise InternalServerError(f"{e.__class__.__name__}: {e}")
 
-            self._add(method, url, wrapper)
+            self._add(method, url, wrapper, MethodDocs(method, url, func.__annotations__))
 
             return wrapper
 
@@ -180,8 +191,8 @@ class Router:
     def patch(self, url: str):
         return self._method('patch', url)
 
-    def _add(self, method, url: str, func):
-        self._router.add(url.strip('/').split('/'), method, func)
+    def _add(self, method, url: str, func, docs):
+        self._router.add(url.strip('/').split('/'), method, func, docs)
 
     def add_router(self, url: str, router: 'Router'):
         self._router.add_router(url.strip('/').split('/'), router._router)

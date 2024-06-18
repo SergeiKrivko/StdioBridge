@@ -81,6 +81,9 @@ class BridgeAPI:
                                             'data': {'message': "Internal Server Error"}}), sep='', flush=True)
 
     def run(self):
+        @self.get('docs')
+        def docs():
+            return self._root_router._router.docs()
         asyncio.run(self._run())
 
     async def _run(self):
